@@ -408,7 +408,7 @@ const MBTITable: React.FC = () => {
     }
   };
 
-  const renderElementBadges = (elements: string): JSX.Element => {
+  const renderElementBadges = (elements: string): React.ReactNode => {
     const parts = elements.split("+");
     return (
       <div className="flex flex-wrap gap-1 mt-2">
@@ -460,7 +460,7 @@ const MBTITable: React.FC = () => {
     return names[elem] || "";
   };
 
-  const renderDetailView = (type: MBTIType | null): JSX.Element | null => {
+  const renderDetailView = (type: MBTIType | null): React.ReactNode | null => {
     if (!type) return null;
     const colors = getColorByGroup(type.group);
 
@@ -619,7 +619,7 @@ const MBTITable: React.FC = () => {
     );
   };
 
-  const renderTypeCard = (type: MBTIType): JSX.Element => {
+  const renderTypeCard = (type: MBTIType): React.ReactNode => {
     const colors = getColorByGroup(type.group);
     const emoji = getTypeEmoji(type.type);
 
@@ -663,7 +663,7 @@ const MBTITable: React.FC = () => {
     );
   };
 
-  const renderFunctionsExplanation = (): JSX.Element => (
+  const renderFunctionsExplanation = (): React.ReactNode => (
     <div className="mt-8 bg-white p-6 rounded-xl shadow-md border border-gray-100">
       <h3 className="text-xl font-bold mb-4 flex items-center">
         <span className="inline-block w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center mr-2">
@@ -685,7 +685,7 @@ const MBTITable: React.FC = () => {
     </div>
   );
 
-  const renderBasicView = (): JSX.Element => {
+  const renderBasicView = (): React.ReactNode => {
     const filteredTypes = getFilteredTypes();
 
     return (
