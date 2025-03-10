@@ -1,6 +1,8 @@
-import React, { useState } from "react";
+"use client";
+import { AnimatePresence, motion } from "framer-motion";
+import React, { useEffect, useState } from "react";
 
-type Tab = "basic" | "functions";
+type Tab = "table" | "functions" | "details";
 
 interface MBTIType {
   type: string;
@@ -26,18 +28,23 @@ interface Group {
 
 interface Colors {
   bg: string;
-  border: string;
+  bgLight: string;
   text: string;
-  hover: string;
+  border: string;
   gradient: string;
 }
 
 const MBTITable: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<Tab>("basic");
+  const [activeTab, setActiveTab] = useState<Tab>("table");
   const [expandedType, setExpandedType] = useState<MBTIType | null>(null);
   const [searchTerm, setSearchTerm] = useState<string>("");
   const [selectedGroup, setSelectedGroup] = useState<string>("all");
+  const [sortConfig, setSortConfig] = useState<{
+    key: keyof MBTIType;
+    direction: "ascending" | "descending";
+  }>({ key: "type", direction: "ascending" });
 
+  // MBTI data
   const mbtiTypes: MBTIType[] = [
     {
       type: "ISTJ",
@@ -320,6 +327,14 @@ const MBTITable: React.FC = () => {
     },
   ];
 
+  // Effect to scroll to top when expanded type changes
+  useEffect(() => {
+    if (expandedType) {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      setActiveTab("details");
+    }
+  }, [expandedType]);
+
   const getFilteredTypes = (): MBTIType[] => {
     let filtered = mbtiTypes;
 
@@ -333,54 +348,75 @@ const MBTITable: React.FC = () => {
         (type) =>
           type.type.toLowerCase().includes(term) ||
           type.name.toLowerCase().includes(term) ||
-          type.description.toLowerCase().includes(term)
+          type.description.toLowerCase().includes(term) ||
+          type.careers.toLowerCase().includes(term) ||
+          type.element.toLowerCase().includes(term)
       );
     }
 
-    return filtered;
+    return [...filtered].sort((a, b) => {
+      const aValue = a[sortConfig.key];
+      const bValue = b[sortConfig.key];
+
+      if (aValue < bValue) {
+        return sortConfig.direction === "ascending" ? -1 : 1;
+      }
+      if (aValue > bValue) {
+        return sortConfig.direction === "ascending" ? 1 : -1;
+      }
+      return 0;
+    });
+  };
+
+  const handleSort = (key: keyof MBTIType) => {
+    let direction: "ascending" | "descending" = "ascending";
+    if (sortConfig.key === key && sortConfig.direction === "ascending") {
+      direction = "descending";
+    }
+    setSortConfig({ key, direction });
   };
 
   const getColorByGroup = (group: string): Colors => {
     switch (group) {
       case "分析家（Analyst）":
         return {
-          bg: "bg-violet-50",
-          border: "border-violet-200",
+          bg: "bg-violet-600",
+          bgLight: "bg-violet-50",
           text: "text-violet-800",
-          hover: "hover:bg-violet-100",
-          gradient: "from-violet-500 to-indigo-600",
+          border: "border-violet-200",
+          gradient: "from-violet-600 to-indigo-700",
         };
       case "外交官（Diplomat）":
         return {
-          bg: "bg-emerald-50",
-          border: "border-emerald-200",
+          bg: "bg-emerald-600",
+          bgLight: "bg-emerald-50",
           text: "text-emerald-800",
-          hover: "hover:bg-emerald-100",
-          gradient: "from-emerald-500 to-green-600",
+          border: "border-emerald-200",
+          gradient: "from-emerald-600 to-green-700",
         };
       case "番人（Sentinel）":
         return {
-          bg: "bg-sky-50",
-          border: "border-sky-200",
+          bg: "bg-sky-600",
+          bgLight: "bg-sky-50",
           text: "text-sky-800",
-          hover: "hover:bg-sky-100",
-          gradient: "from-sky-500 to-blue-600",
+          border: "border-sky-200",
+          gradient: "from-sky-600 to-blue-700",
         };
       case "探検家（Explorer）":
         return {
-          bg: "bg-amber-50",
-          border: "border-amber-200",
+          bg: "bg-amber-600",
+          bgLight: "bg-amber-50",
           text: "text-amber-800",
-          hover: "hover:bg-amber-100",
-          gradient: "from-amber-500 to-orange-600",
+          border: "border-amber-200",
+          gradient: "from-amber-600 to-orange-700",
         };
       default:
         return {
-          bg: "bg-gray-50",
-          border: "border-gray-200",
+          bg: "bg-gray-600",
+          bgLight: "bg-gray-50",
           text: "text-gray-800",
-          hover: "hover:bg-gray-100",
-          gradient: "from-gray-500 to-gray-600",
+          border: "border-gray-200",
+          gradient: "from-gray-600 to-gray-700",
         };
     }
   };
@@ -411,11 +447,12 @@ const MBTITable: React.FC = () => {
   const renderElementBadges = (elements: string): React.ReactNode => {
     const parts = elements.split("+");
     return (
-      <div className="flex flex-wrap gap-1 mt-2">
+      <div className="flex flex-wrap gap-1">
         {parts.map((element, index) => (
           <span
             key={index}
-            className="text-xs px-2 py-1 rounded-full bg-white shadow-sm"
+            className="text-xs px-2 py-1 rounded-full bg-white/80 shadow-sm backdrop-blur-sm"
+            title={getElementName(element)}
           >
             {getElementIcon(element)} {element}
           </span>
@@ -460,303 +497,847 @@ const MBTITable: React.FC = () => {
     return names[elem] || "";
   };
 
-  const renderDetailView = (type: MBTIType | null): React.ReactNode | null => {
-    if (!type) return null;
-    const colors = getColorByGroup(type.group);
+  const renderGroupBadge = (group: string): React.ReactNode => {
+    const colors = getColorByGroup(group);
+    const displayGroup = group.split("（")[0];
 
     return (
-      <div className="mt-8 bg-white rounded-xl shadow-lg overflow-hidden border border-gray-100">
-        <div className={`bg-gradient-to-r ${colors.gradient} p-6 text-white`}>
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-2xl font-bold">
-                {type.type} - {type.name}
-              </h3>
-              <p className="text-white/80 mt-1">{type.description}</p>
-            </div>
-            <div className="hidden md:block">
-              <span className="text-3xl">{getTypeEmoji(type.type)}</span>
-            </div>
-          </div>
-          <div className="flex flex-wrap gap-2 mt-3">
-            <span className="bg-white/20 px-3 py-1 rounded-full text-sm">
-              {type.group}
-            </span>
-            <span className="bg-white/20 px-3 py-1 rounded-full text-sm">
-              {type.keirsey}
-            </span>
-          </div>
-        </div>
-
-        <div className="p-6">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div className="space-y-6">
-              <section>
-                <h4 className="text-lg font-semibold mb-3 flex items-center">
-                  <span className="inline-block w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center mr-2">
-                    🧩
-                  </span>
-                  基本要素
-                </h4>
-                <div className="flex flex-wrap gap-2 mb-3">
-                  {type.element.split("+").map((elem, i) => (
-                    <div
-                      key={i}
-                      className="flex items-center bg-gray-50 rounded-lg p-2 border border-gray-100"
-                    >
-                      <span className="text-xl mr-2">
-                        {getElementIcon(elem)}
-                      </span>
-                      <div>
-                        <div className="font-medium">{elem}</div>
-                        <div className="text-xs text-gray-500">
-                          {getElementName(elem)}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                <div className="mt-4">
-                  <div className="text-sm font-medium text-gray-700 mb-1">
-                    認知機能
-                  </div>
-                  <div className="flex flex-wrap gap-1">
-                    {type.functions.split("-").map((func, i) => (
-                      <div
-                        key={i}
-                        className={`px-2 py-1 rounded text-xs ${
-                          i === 0
-                            ? "bg-green-100 text-green-800"
-                            : i === 1
-                            ? "bg-blue-100 text-blue-800"
-                            : i === 2
-                            ? "bg-amber-100 text-amber-800"
-                            : "bg-purple-100 text-purple-800"
-                        }`}
-                        title={functionsExplanation[func]}
-                      >
-                        {func} {i === 0 ? "(主要)" : i === 1 ? "(補助)" : ""}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </section>
-
-              <section>
-                <h4 className="text-lg font-semibold mb-3 flex items-center">
-                  <span className="inline-block w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center mr-2">
-                    ⚡
-                  </span>
-                  強みと弱み
-                </h4>
-                <div className="space-y-3">
-                  <div className="bg-green-50 p-3 rounded-lg border border-green-100">
-                    <div className="text-sm font-medium text-green-800 mb-1">
-                      強み
-                    </div>
-                    <p>{type.strengths}</p>
-                  </div>
-                  <div className="bg-red-50 p-3 rounded-lg border border-red-100">
-                    <div className="text-sm font-medium text-red-800 mb-1">
-                      弱み
-                    </div>
-                    <p>{type.weaknesses}</p>
-                  </div>
-                </div>
-              </section>
-            </div>
-
-            <div className="space-y-6">
-              <section>
-                <h4 className="text-lg font-semibold mb-3 flex items-center">
-                  <span className="inline-block w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center mr-2">
-                    🔄
-                  </span>
-                  ストレスと決断
-                </h4>
-                <div className="space-y-3">
-                  <div className="bg-gray-50 p-3 rounded-lg border border-gray-100">
-                    <div className="text-sm font-medium text-gray-700 mb-1">
-                      意思決定プロセス
-                    </div>
-                    <p>{type.decision}</p>
-                  </div>
-                  <div className="bg-amber-50 p-3 rounded-lg border border-amber-100">
-                    <div className="text-sm font-medium text-amber-800 mb-1">
-                      ストレス時の特徴
-                    </div>
-                    <p>{type.stress}</p>
-                  </div>
-                </div>
-              </section>
-
-              <section>
-                <h4 className="text-lg font-semibold mb-3 flex items-center">
-                  <span className="inline-block w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center mr-2">
-                    💼
-                  </span>
-                  キャリアと応用
-                </h4>
-                <div className="space-y-3">
-                  <div className="bg-blue-50 p-3 rounded-lg border border-blue-100">
-                    <div className="text-sm font-medium text-blue-800 mb-1">
-                      向いている職業
-                    </div>
-                    <p>{type.careers}</p>
-                  </div>
-                  <div className="bg-purple-50 p-3 rounded-lg border border-purple-100">
-                    <div className="text-sm font-medium text-purple-800 mb-1">
-                      シャドウ機能
-                    </div>
-                    <p>{type.shadow}</p>
-                  </div>
-                </div>
-              </section>
-            </div>
-          </div>
-        </div>
-      </div>
+      <span
+        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${colors.bgLight} ${colors.text}`}
+      >
+        {displayGroup}
+      </span>
     );
   };
 
-  const renderTypeCard = (type: MBTIType): React.ReactNode => {
-    const colors = getColorByGroup(type.group);
-    const emoji = getTypeEmoji(type.type);
+  const renderDetailView = (): React.ReactNode | null => {
+    if (!expandedType) return null;
+    const colors = getColorByGroup(expandedType.group);
 
     return (
-      <div
-        key={type.type}
-        className={`border rounded-xl p-4 cursor-pointer transition-all duration-200 ${
-          colors.bg
-        } ${colors.border} ${colors.hover} ${
-          expandedType?.type === type.type
-            ? "ring-2 ring-offset-2 ring-blue-500 shadow-md"
-            : "shadow-sm hover:shadow"
-        }`}
-        onClick={() =>
-          setExpandedType(expandedType?.type === type.type ? null : type)
-        }
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -20 }}
+        transition={{ duration: 0.4 }}
+        className="mt-6"
       >
-        <div className="flex justify-between items-start">
-          <div>
-            <h3 className="text-lg font-bold flex items-center">
-              {type.type}
-              <span
-                className={`ml-2 text-sm py-1 px-2 rounded-full bg-white ${colors.text}`}
-              >
-                {type.name}
-              </span>
-            </h3>
-            <p className="text-sm mt-1 text-gray-600">{type.description}</p>
-          </div>
-          <span className="text-2xl">{emoji}</span>
-        </div>
-        <div className="mt-3">
-          <span
-            className={`inline-block text-xs px-2 py-1 rounded-full bg-white/70 ${colors.text}`}
+        <div className="flex items-center justify-between mb-4">
+          <button
+            onClick={() => {
+              setActiveTab("table");
+              setExpandedType(null);
+            }}
+            className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-gray-600 border border-gray-200 hover:bg-gray-50 transition-colors"
           >
-            {type.group}
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className="h-4 w-4"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M10 19l-7-7m0 0l7-7m-7 7h18"
+              />
+            </svg>
+            テーブルに戻る
+          </button>
+          <span className="text-sm text-gray-500">
+            {expandedType.group} • {expandedType.keirsey}
           </span>
         </div>
-        {renderElementBadges(type.element)}
-      </div>
+
+        <div className="bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-100">
+          <div className={`bg-gradient-to-r ${colors.gradient} p-8 text-white`}>
+            <div className="flex items-center gap-4">
+              <div className="bg-white/20 p-4 rounded-2xl backdrop-blur-sm">
+                <span className="text-4xl">
+                  {getTypeEmoji(expandedType.type)}
+                </span>
+              </div>
+              <div className="flex-1">
+                <div className="flex items-center gap-3 mb-2">
+                  <h3 className="text-3xl font-bold">{expandedType.type}</h3>
+                  <span className="bg-white/20 backdrop-blur-sm px-3 py-1 rounded-full text-sm">
+                    {expandedType.name}
+                  </span>
+                </div>
+                <p className="text-white/90 text-lg">
+                  {expandedType.description}
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-6">
+              <div className="grid grid-cols-4 gap-3">
+                {expandedType.element.split("+").map((elem, i) => (
+                  <motion.div
+                    key={i}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: i * 0.1 }}
+                    className="bg-white/10 backdrop-blur-sm rounded-xl p-3 text-center"
+                  >
+                    <div className="text-xl mb-1">{getElementIcon(elem)}</div>
+                    <div className="font-semibold">{elem}</div>
+                    <div className="text-xs text-white/80">
+                      {getElementName(elem)}
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="p-8">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+              <div className="space-y-6">
+                <section>
+                  <h4 className="text-xl font-semibold mb-4 flex items-center gap-2">
+                    <div className="p-2 rounded-lg bg-gray-100 text-gray-700">
+                      🧩
+                    </div>
+                    認知機能
+                  </h4>
+                  <div className="space-y-3">
+                    {expandedType.functions.split("-").map((func, i) => (
+                      <motion.div
+                        key={i}
+                        initial={{ opacity: 0, x: -10 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: i * 0.1 }}
+                        className={`p-4 rounded-xl flex items-center gap-3 ${
+                          i === 0
+                            ? "bg-green-50 border border-green-100"
+                            : i === 1
+                            ? "bg-blue-50 border border-blue-100"
+                            : i === 2
+                            ? "bg-amber-50 border border-amber-100"
+                            : "bg-purple-50 border border-purple-100"
+                        }`}
+                      >
+                        <div
+                          className={`text-lg font-bold ${
+                            i === 0
+                              ? "text-green-600"
+                              : i === 1
+                              ? "text-blue-600"
+                              : i === 2
+                              ? "text-amber-600"
+                              : "text-purple-600"
+                          }`}
+                        >
+                          {func}
+                        </div>
+                        <div className="flex-1">
+                          <div
+                            className={`text-sm font-medium ${
+                              i === 0
+                                ? "text-green-800"
+                                : i === 1
+                                ? "text-blue-800"
+                                : i === 2
+                                ? "text-amber-800"
+                                : "text-purple-800"
+                            }`}
+                          >
+                            {i === 0
+                              ? "主要機能"
+                              : i === 1
+                              ? "補助機能"
+                              : i === 2
+                              ? "第三機能"
+                              : "劣等機能"}
+                          </div>
+                          <div
+                            className={`text-xs ${
+                              i === 0
+                                ? "text-green-600"
+                                : i === 1
+                                ? "text-blue-600"
+                                : i === 2
+                                ? "text-amber-600"
+                                : "text-purple-600"
+                            }`}
+                          >
+                            {functionsExplanation[func]}
+                          </div>
+                        </div>
+                      </motion.div>
+                    ))}
+                  </div>
+                </section>
+
+                <section>
+                  <h4 className="text-xl font-semibold mb-4 flex items-center gap-2">
+                    <div className="p-2 rounded-lg bg-gray-100 text-gray-700">
+                      💼
+                    </div>
+                    キャリア適性
+                  </h4>
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: 0.3 }}
+                    className="bg-blue-50 p-5 rounded-xl border border-blue-100"
+                  >
+                    <div className="text-sm font-medium text-blue-800 mb-2">
+                      向いている職業
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {expandedType.careers.split("、").map((career, i) => (
+                        <span
+                          key={i}
+                          className="bg-white px-3 py-1 rounded-lg text-blue-700 shadow-sm"
+                        >
+                          {career}
+                        </span>
+                      ))}
+                    </div>
+                  </motion.div>
+                </section>
+              </div>
+
+              <div className="space-y-6">
+                <section>
+                  <h4 className="text-xl font-semibold mb-4 flex items-center gap-2">
+                    <div className="p-2 rounded-lg bg-gray-100 text-gray-700">
+                      ⚡
+                    </div>
+                    強みと弱み
+                  </h4>
+                  <div className="space-y-4">
+                    <motion.div
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.1 }}
+                      className="bg-green-50 p-5 rounded-xl border border-green-100"
+                    >
+                      <div className="text-sm font-medium text-green-800 mb-2">
+                        強み
+                      </div>
+                      <p className="text-green-700">{expandedType.strengths}</p>
+                    </motion.div>
+                    <motion.div
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.2 }}
+                      className="bg-red-50 p-5 rounded-xl border border-red-100"
+                    >
+                      <div className="text-sm font-medium text-red-800 mb-2">
+                        弱み
+                      </div>
+                      <p className="text-red-700">{expandedType.weaknesses}</p>
+                    </motion.div>
+                  </div>
+                </section>
+
+                <section>
+                  <h4 className="text-xl font-semibold mb-4 flex items-center gap-2">
+                    <div className="p-2 rounded-lg bg-gray-100 text-gray-700">
+                      🔄
+                    </div>
+                    ストレスと決断
+                  </h4>
+                  <div className="space-y-4">
+                    <motion.div
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.3 }}
+                      className="bg-amber-50 p-5 rounded-xl border border-amber-100"
+                    >
+                      <div className="text-sm font-medium text-amber-800 mb-2">
+                        ストレス時の特徴
+                      </div>
+                      <p className="text-amber-700">{expandedType.stress}</p>
+                    </motion.div>
+                    <motion.div
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.4 }}
+                      className="bg-indigo-50 p-5 rounded-xl border border-indigo-100"
+                    >
+                      <div className="text-sm font-medium text-indigo-800 mb-2">
+                        意思決定プロセス
+                      </div>
+                      <p className="text-indigo-700">{expandedType.decision}</p>
+                    </motion.div>
+                  </div>
+                </section>
+              </div>
+            </div>
+          </div>
+        </div>
+      </motion.div>
     );
   };
 
   const renderFunctionsExplanation = (): React.ReactNode => (
-    <div className="mt-8 bg-white p-6 rounded-xl shadow-md border border-gray-100">
-      <h3 className="text-xl font-bold mb-4 flex items-center">
-        <span className="inline-block w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center mr-2">
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.4 }}
+      className="mt-8 bg-white p-8 rounded-2xl shadow-lg border border-gray-100"
+    >
+      <h3 className="text-2xl font-bold mb-6 flex items-center gap-3">
+        <span className="inline-block w-10 h-10 rounded-xl bg-violet-100 flex items-center justify-center text-violet-700">
           🧠
         </span>
         認知機能の説明
       </h3>
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
-        {Object.entries(functionsExplanation).map(([key, value]) => (
-          <div
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {Object.entries(functionsExplanation).map(([key, value], index) => (
+          <motion.div
             key={key}
-            className="border rounded-lg p-3 transition-all hover:bg-gray-50"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: index * 0.05 }}
+            className="border rounded-xl p-4 transition-all hover:shadow-md hover:bg-gray-50"
           >
-            <span className="font-bold text-blue-600">{key}</span>
-            <p className="text-sm mt-1 text-gray-600">{value}</p>
-          </div>
+            <span
+              className={`inline-block text-lg font-bold mb-2 px-2 py-1 rounded-lg ${
+                key.startsWith("S")
+                  ? "bg-blue-100 text-blue-700"
+                  : key.startsWith("N")
+                  ? "bg-purple-100 text-purple-700"
+                  : key.startsWith("T")
+                  ? "bg-green-100 text-green-700"
+                  : "bg-red-100 text-red-700"
+              }`}
+            >
+              {key}
+            </span>
+            <p className="text-gray-700">{value}</p>
+          </motion.div>
         ))}
       </div>
-    </div>
+
+      <div className="mt-10 grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="bg-indigo-50 p-6 rounded-xl border border-indigo-100">
+          <h4 className="text-xl font-semibold text-indigo-800 mb-3">
+            MBTIの構成要素
+          </h4>
+          <div className="space-y-4">
+            <div className="flex gap-3 items-center">
+              <div className="flex-shrink-0 w-12 h-12 rounded-xl bg-white flex items-center justify-center shadow-sm">
+                <span className="text-2xl">E/I</span>
+              </div>
+              <div>
+                <div className="font-medium text-indigo-900">
+                  エネルギーの方向
+                </div>
+                <div className="text-sm text-indigo-700">
+                  外向型(Extraversion)か内向型(Introversion)か
+                </div>
+              </div>
+            </div>
+            <div className="flex gap-3 items-center">
+              <div className="flex-shrink-0 w-12 h-12 rounded-xl bg-white flex items-center justify-center shadow-sm">
+                <span className="text-2xl">S/N</span>
+              </div>
+              <div>
+                <div className="font-medium text-indigo-900">情報収集</div>
+                <div className="text-sm text-indigo-700">
+                  感覚型(Sensing)か直観型(iNtuition)か
+                </div>
+              </div>
+            </div>
+            <div className="flex gap-3 items-center">
+              <div className="flex-shrink-0 w-12 h-12 rounded-xl bg-white flex items-center justify-center shadow-sm">
+                <span className="text-2xl">T/F</span>
+              </div>
+              <div>
+                <div className="font-medium text-indigo-900">意思決定</div>
+                <div className="text-sm text-indigo-700">
+                  思考型(Thinking)か感情型(Feeling)か
+                </div>
+              </div>
+            </div>
+            <div className="flex gap-3 items-center">
+              <div className="flex-shrink-0 w-12 h-12 rounded-xl bg-white flex items-center justify-center shadow-sm">
+                <span className="text-2xl">J/P</span>
+              </div>
+              <div>
+                <div className="font-medium text-indigo-900">外界への対応</div>
+                <div className="text-sm text-indigo-700">
+                  判断型(Judging)か知覚型(Perceiving)か
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-gradient-to-br from-gray-50 to-gray-100 p-6 rounded-xl border border-gray-200">
+          <h4 className="text-xl font-semibold text-gray-800 mb-3">
+            認知機能の順序
+          </h4>
+          <div className="space-y-4">
+            <div>
+              <div className="font-medium text-gray-900 mb-1">
+                主要機能 (Dominant)
+              </div>
+              <div className="text-sm text-gray-700">
+                最も自然で強い機能。その人の中心的な判断や行動の基盤となる。
+              </div>
+            </div>
+            <div>
+              <div className="font-medium text-gray-900 mb-1">
+                補助機能 (Auxiliary)
+              </div>
+              <div className="text-sm text-gray-700">
+                主要機能をサポートし、バランスを取る機能。
+              </div>
+            </div>
+            <div>
+              <div className="font-medium text-gray-900 mb-1">
+                第三機能 (Tertiary)
+              </div>
+              <div className="text-sm text-gray-700">
+                比較的未発達で、ストレス下で問題を起こしやすい機能。
+              </div>
+            </div>
+            <div>
+              <div className="font-medium text-gray-900 mb-1">
+                劣等機能 (Inferior)
+              </div>
+              <div className="text-sm text-gray-700">
+                最も未発達で、大きなストレス下で突然表れることがある機能。
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </motion.div>
   );
 
-  const renderBasicView = (): React.ReactNode => {
+  const renderSortIndicator = (key: keyof MBTIType) => {
+    if (sortConfig.key !== key) return null;
+
+    return (
+      <span className="ml-1">
+        {sortConfig.direction === "ascending" ? "▲" : "▼"}
+      </span>
+    );
+  };
+
+  const renderTableView = (): React.ReactNode => {
     const filteredTypes = getFilteredTypes();
 
     return (
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {filteredTypes.length > 0 ? (
-          filteredTypes.map(renderTypeCard)
-        ) : (
-          <div className="col-span-full p-8 text-center">
-            <div className="text-5xl mb-4">🔍</div>
-            <h3 className="text-xl font-medium text-gray-700">
-              タイプが見つかりません
-            </h3>
-            <p className="text-gray-500 mt-2">検索条件を変更してみてください</p>
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="mt-6"
+      >
+        <div className="bg-white rounded-xl shadow-lg overflow-hidden border border-gray-200">
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th
+                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                    onClick={() => handleSort("type")}
+                  >
+                    <div className="flex items-center">
+                      タイプ
+                      {renderSortIndicator("type")}
+                    </div>
+                  </th>
+                  <th
+                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                    onClick={() => handleSort("name")}
+                  >
+                    <div className="flex items-center">
+                      名前
+                      {renderSortIndicator("name")}
+                    </div>
+                  </th>
+                  <th
+                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                    onClick={() => handleSort("group")}
+                  >
+                    <div className="flex items-center">
+                      グループ
+                      {renderSortIndicator("group")}
+                    </div>
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    要素
+                  </th>
+                  <th
+                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden lg:table-cell cursor-pointer hover:bg-gray-100"
+                    onClick={() => handleSort("functions")}
+                  >
+                    <div className="flex items-center">
+                      認知機能
+                      {renderSortIndicator("functions")}
+                    </div>
+                  </th>
+                  <th
+                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden lg:table-cell cursor-pointer hover:bg-gray-100"
+                    onClick={() => handleSort("description")}
+                  >
+                    <div className="flex items-center">
+                      特徴
+                      {renderSortIndicator("description")}
+                    </div>
+                  </th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    詳細
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {filteredTypes.map((type) => {
+                  const colors = getColorByGroup(type.group);
+                  return (
+                    <tr
+                      key={type.type}
+                      className="hover:bg-gray-50 transition-colors"
+                    >
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center">
+                          <span className="text-xl mr-2">
+                            {getTypeEmoji(type.type)}
+                          </span>
+                          <span className="font-medium">{type.type}</span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className="font-medium">{type.name}</span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        {renderGroupBadge(type.group)}
+                      </td>
+                      <td className="px-6 py-4">
+                        {renderElementBadges(type.element)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap hidden lg:table-cell">
+                        <div className="text-sm text-gray-700">
+                          {type.functions}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 hidden lg:table-cell">
+                        <div className="text-sm text-gray-700 truncate max-w-xs">
+                          {type.description}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                        <button
+                          onClick={() => setExpandedType(type)}
+                          className="text-blue-600 hover:text-blue-900 font-medium"
+                        >
+                          詳細を見る
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+                {filteredTypes.length === 0 && (
+                  <tr>
+                    <td colSpan={7} className="px-6 py-10 text-center">
+                      <div className="text-4xl mb-3">🔍</div>
+                      <p className="text-gray-500">
+                        該当するタイプが見つかりません
+                      </p>
+                      <button
+                        onClick={() => {
+                          setSearchTerm("");
+                          setSelectedGroup("all");
+                        }}
+                        className="mt-3 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                      >
+                        検索条件をリセット
+                      </button>
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
           </div>
-        )}
+        </div>
+      </motion.div>
+    );
+  };
+
+  const renderCompactTableView = (): React.ReactNode => {
+    const filteredTypes = getFilteredTypes();
+
+    return (
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="mt-6 lg:hidden"
+      >
+        <div className="space-y-4">
+          {filteredTypes.map((type) => {
+            const colors = getColorByGroup(type.group);
+            return (
+              <div
+                key={type.type}
+                className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden"
+              >
+                <div className={`h-1 ${colors.bg}`}></div>
+                <div className="p-4">
+                  <div className="flex justify-between items-start mb-2">
+                    <div className="flex items-center">
+                      <span className="text-xl mr-2">
+                        {getTypeEmoji(type.type)}
+                      </span>
+                      <div>
+                        <div className="font-bold">{type.type}</div>
+                        <div className="text-sm text-gray-600">{type.name}</div>
+                      </div>
+                    </div>
+                    {renderGroupBadge(type.group)}
+                  </div>
+
+                  <div className="mb-3 text-sm text-gray-700">
+                    {type.description}
+                  </div>
+
+                  <div className="flex justify-between items-center">
+                    <div className="flex flex-wrap gap-1">
+                      {type.element.split("+").map((elem, i) => (
+                        <span
+                          key={i}
+                          className="text-xs px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-700"
+                          title={getElementName(elem)}
+                        >
+                          {getElementIcon(elem)} {elem}
+                        </span>
+                      ))}
+                    </div>
+                    <button
+                      onClick={() => setExpandedType(type)}
+                      className="text-sm text-blue-600 font-medium hover:text-blue-800"
+                    >
+                      詳細
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+
+          {filteredTypes.length === 0 && (
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 text-center">
+              <div className="text-4xl mb-3">🔍</div>
+              <p className="text-gray-500">該当するタイプが見つかりません</p>
+              <button
+                onClick={() => {
+                  setSearchTerm("");
+                  setSelectedGroup("all");
+                }}
+                className="mt-3 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                検索条件をリセット
+              </button>
+            </div>
+          )}
+        </div>
+      </motion.div>
+    );
+  };
+
+  const renderGroupFilter = (): React.ReactNode => {
+    return (
+      <div className="flex flex-wrap gap-2 mb-6">
+        {groups.map((group) => (
+          <button
+            key={group.id}
+            onClick={() => setSelectedGroup(group.id)}
+            className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
+              selectedGroup === group.id
+                ? "bg-blue-600 text-white shadow-md"
+                : "bg-white text-gray-700 border border-gray-200 hover:bg-gray-50"
+            }`}
+          >
+            {group.name}
+          </button>
+        ))}
       </div>
     );
   };
 
-  return (
-    <div className="container mx-auto px-4 py-8">
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-bold">MBTI タイプ一覧</h2>
-        <div className="flex items-center gap-4">
-          <input
-            type="text"
-            placeholder="検索..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-          <select
-            value={selectedGroup}
-            onChange={(e) => setSelectedGroup(e.target.value)}
-            className="border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            {groups.map((group) => (
-              <option key={group.id} value={group.id}>
-                {group.name}
-              </option>
-            ))}
-          </select>
+  const renderHeader = (): React.ReactNode => {
+    const currentTab =
+      activeTab === "details" && expandedType
+        ? "詳細"
+        : activeTab === "functions"
+        ? "認知機能"
+        : "タイプ一覧";
+
+    return (
+      <motion.div
+        initial={{ y: -20, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        transition={{ duration: 0.4 }}
+        className="bg-white sticky top-0 z-10 px-6 py-4 rounded-xl shadow-lg mb-6"
+      >
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-blue-100 rounded-lg text-blue-700 text-xl">
+              🧠
+            </div>
+            <h2 className="text-2xl font-bold">MBTI タイプ一覧</h2>
+            <div className="hidden md:block">
+              <span className="text-sm bg-gray-100 px-2.5 py-1 rounded-full text-gray-700">
+                {currentTab}
+              </span>
+            </div>
+          </div>
+
+          {activeTab !== "details" && (
+            <div className="flex flex-col sm:flex-row gap-3">
+              <div className="relative flex-1 min-w-0 sm:min-w-[240px]">
+                <input
+                  type="text"
+                  placeholder="タイプ名や特徴で検索..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="border rounded-lg pl-10 pr-10 py-2 w-full focus:outline-none focus:ring-2 focus:ring-blue-300"
+                />
+                <div className="absolute left-3 top-2.5 text-gray-400">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-5 w-5"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                    />
+                  </svg>
+                </div>
+                {searchTerm && (
+                  <button
+                    onClick={() => setSearchTerm("")}
+                    className="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600"
+                  >
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      className="h-5 w-5"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M6 18L18 6M6 6l12 12"
+                      />
+                    </svg>
+                  </button>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    setActiveTab("table");
+                    if (expandedType) setExpandedType(null);
+                  }}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-1 ${
+                    activeTab === "table"
+                      ? "bg-blue-600 text-white"
+                      : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                  }`}
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-4 w-4"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M4 6h16M4 12h16M4 18h7"
+                    />
+                  </svg>
+                  表形式
+                </button>
+                <button
+                  onClick={() => {
+                    setActiveTab("functions");
+                    if (expandedType) setExpandedType(null);
+                  }}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-1 ${
+                    activeTab === "functions"
+                      ? "bg-blue-600 text-white"
+                      : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                  }`}
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-4 w-4"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"
+                    />
+                  </svg>
+                  認知機能
+                </button>
+              </div>
+            </div>
+          )}
         </div>
-      </div>
+      </motion.div>
+    );
+  };
 
-      <div className="flex gap-4 mb-8">
-        <button
-          onClick={() => setActiveTab("basic")}
-          className={`px-4 py-2 rounded-lg font-medium ${
-            activeTab === "basic"
-              ? "bg-blue-500 text-white"
-              : "bg-gray-100 text-gray-700"
-          }`}
+  const renderContent = () => {
+    switch (activeTab) {
+      case "details":
+        return renderDetailView();
+      case "functions":
+        return renderFunctionsExplanation();
+      default:
+        return (
+          <>
+            {renderGroupFilter()}
+            <div className="hidden lg:block">{renderTableView()}</div>
+            <div className="lg:hidden">{renderCompactTableView()}</div>
+          </>
+        );
+    }
+  };
+
+  return (
+    <div className="container mx-auto px-4 py-8 max-w-7xl">
+      {renderHeader()}
+
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={activeTab}
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.3 }}
         >
-          基本
-        </button>
-        <button
-          onClick={() => setActiveTab("functions")}
-          className={`px-4 py-2 rounded-lg font-medium ${
-            activeTab === "functions"
-              ? "bg-blue-500 text-white"
-              : "bg-gray-100 text-gray-700"
-          }`}
-        >
-          認知機能
-        </button>
-      </div>
-
-      {activeTab === "basic" ? renderBasicView() : renderFunctionsExplanation()}
-
-      {renderDetailView(expandedType)}
+          {renderContent()}
+        </motion.div>
+      </AnimatePresence>
     </div>
   );
 };
